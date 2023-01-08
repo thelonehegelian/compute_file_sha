@@ -4,12 +4,14 @@ use std::fs::File;
 use std::io::{BufReader, Error, Read};
 use std::path::Path;
 use std::sync::mpsc::channel;
+use std::thread;
 use threadpool::ThreadPool;
 use walkdir::WalkDir;
+
 // filepath is of type P and P is a type that must implement the AsRef trait
-fn compute_digest<P: AsRef<Path>>(filepath: P) -> Result<Digest, Error> {
+fn compute_digest<P: AsRef<Path>>(filepath: P) -> Result<(Digest, P), Error> {
     // open file using a buffer
-    let mut buffer_reader = BufReader::new(File::open(filepath).unwrap());
+    let mut buffer_reader = BufReader::new(File::open(&filepath).unwrap());
     // create a standard buffer of 1024
     let mut buffer = [0; 1024];
     // create contex so we can create a digerst using byte by byte data
@@ -26,11 +28,10 @@ fn compute_digest<P: AsRef<Path>>(filepath: P) -> Result<Digest, Error> {
         }
         ctx.update(&buffer[..count]);
     }
-    Ok(ctx.finish())
+    Ok((ctx.finish(), filepath))
 }
 
 fn main() {
-    // TODO: use threads
     // num_cpus gets the number of threads on a system
     let num_cpus = num_cpus::get();
     // create a pool of threads
@@ -44,6 +45,8 @@ fn main() {
         let sender = sender.clone();
         let path = entry.unwrap().path().to_owned();
         pool.execute(move || {
+            let thread_id = thread::current().id();
+            println!("The current thread ID is: {:?}", thread_id);
             let digest = compute_digest(path).unwrap();
             // send the computed digest through the channel
             sender.send(digest).expect("Crashed");
@@ -52,24 +55,7 @@ fn main() {
     drop(sender);
 
     for msg in receiver {
-        println!("{:?}", msg);
+        let (digest, path) = msg;
+        println!("{:?}", digest);
     }
-    // for entry in WalkDir::new("Midjourney")
-    //     .follow_links(true)
-    //     .into_iter()
-    //     .filter_map(|e| e.ok())
-    //     .filter(|e| !e.path().is_dir())
-    // {
-    //     let path = entry.path().to_owned();
-    //     let sender = sender.clone();
-    //     pool.execute(move || {
-    //         let digest = compute_digest(path);
-    //         sender.send(digest).expect("Could not send data!");
-    //     });
-    // }
-    // drop(sender);
-    // for t in receiver.iter() {
-    //     let sha = t.unwrap();
-    //     println!("{:?}", sha);
-    // }
 }
