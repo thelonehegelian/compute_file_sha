@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 ring = "0.16.20"
 walkdir = "2.3.2"
+threadpool = "1.8.1"
+num_cpus = "1.13.0"
